@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const app = require('../index');
 
 // Kiểm tra nếu đang chạy trong GitHub Actions hoặc có MONGO_URI
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://admin:secret123@localhost:27018/expense_tracker_test?authSource=admin';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://admin:admin123@localhost:27017/expense_tracker_test?authSource=admin';
 const shouldTestDB = process.env.SKIP_DB_TESTS !== 'true';
 
 // Chỉ kết nối DB nếu cần test database
