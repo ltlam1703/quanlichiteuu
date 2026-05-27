@@ -1,0 +1,150 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const MONGO_URI = process.env.MONGO_URI;
+const PORT = process.env.PORT || 3000;
+
+if (!MONGO_URI) {
+  console.error('[ERROR] MONGO_URI is not defined in environment variables');
+  process.exit(1);
+}
+
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('[INFO] MongoDB connected successfully'))
+  .catch(err => {
+    console.error('[ERROR] MongoDB connection failed:', err.message);
+    process.exit(1);
+  });
+
+mongoose.connection.on('disconnected', () => console.warn('[WARN] MongoDB disconnected'));
+mongoose.connection.on('reconnected', () => console.log('[INFO] MongoDB reconnected'));
+
+const txSchema = new mongoose.Schema({
+  description: { type: String, required: true, trim: true },
+  amount:      { type: Number, required: true, min: 1 },
+  category:    { type: String, default: 'Khac' },
+  type:        { type: String, enum: ['expense', 'income'], required: true },
+  tx_date:     { type: Date, default: Date.now },
+  created_at:  { type: Date, default: Date.now },
+});
+
+const Transaction = mongoose.model('Transaction', txSchema);
+
+app.get('/api/health', (_, res) => {
+  const status = mongoose.connection.readyState === 1 ? 'ok' : 'db_disconnected';
+  console.log('[INFO] Health check requested, status:', status);
+  res.json({ status, db: status, timestamp: new Date().toISOString() });
+});
+
+app.get('/api/transactions', async (req, res) => {
+  try {
+    // const { type, category, month } = req.query;
+    const { type, category, date } = req.query;
+    const filter = {};
+    if (type)     filter.type = type;
+    if (category) filter.category = category;
+    // if (month) {
+    //   const [y, m] = month.split('-').map(Number);
+    //   filter.tx_date = {
+    //     $gte: new Date(y, m - 1, 1),
+    //     $lt:  new Date(y, m, 1),
+    //   };
+    // }
+    if (date) {
+    const selectedDate = new Date(date);
+    filter.tx_date = {
+      $gte: new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate()
+      ),
+      $lt: new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate() + 1
+      ),
+    };
+  }
+    const txs = await Transaction.find(filter).sort({ tx_date: -1, created_at: -1 });
+    console.log('[INFO] GET /api/transactions - returned', txs.length, 'records');
+    res.json(txs);
+  } catch (e) {
+    console.error('[ERROR] GET /api/transactions:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/transactions/summary', async (req, res) => {
+  try {
+    const result = await Transaction.aggregate([
+      {
+        $group: {
+          _id: {
+            year:  { $year: '$tx_date' },
+            month: { $month: '$tx_date' },
+            type:  '$type',
+          },
+          total: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.year': -1, '_id.month': -1 } },
+    ]);
+    res.json(result);
+  } catch (e) {
+    console.error('[ERROR] GET /api/transactions/summary:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/transactions', async (req, res) => {
+  try {
+    const tx = await Transaction.create(req.body);
+    console.log('[INFO] POST /api/transactions - created:', tx._id);
+    res.status(201).json(tx);
+  } catch (e) {
+    console.error('[ERROR] POST /api/transactions:', e.message);
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/transactions/:id', async (req, res) => {
+  try {
+    await Transaction.findByIdAndDelete(req.params.id);
+    console.log('[INFO] DELETE /api/transactions/' + req.params.id);
+    res.json({ message: 'deleted' });
+  } catch (e) {
+    console.error('[ERROR] DELETE /api/transactions/' + req.params.id + ':', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/transactions/:id', async (req, res) => {
+  try {
+    const tx = await Transaction.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    console.log('[INFO] PUT /api/transactions/' + req.params.id);
+    res.json(tx);
+  } catch (e) {
+    console.error('[ERROR] PUT /api/transactions/' + req.params.id + ':', e.message);
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.use((err, req, res, next) => {
+  console.error('[ERROR] Unhandled error:', err.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+app.listen(PORT, () => {
+  console.log('================================');
+  console.log('[INFO] API running on port ' + PORT);
+  console.log('[INFO] Frontend: http://localhost:8082');
+  console.log('[INFO] API:      http://localhost:' + PORT + '/api/transactions');
+  console.log('[INFO] Health:   http://localhost:' + PORT + '/api/health');
+  console.log('================================');
+});

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản lý chi tiêu</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+  header { background: #1a1a2e; color: #fff; padding: 1rem 2rem; display: flex; align-items: center; gap: 10px; }
+  header h1 { font-size: 1.2rem; font-weight: 600; }
+  .container { max-width: 960px; margin: 0 auto; padding: 1.5rem; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .stat { background: #fff; border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .stat-label { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .stat-value { font-size: 22px; font-weight: 600; }
+  .stat-value.total  { color: #1a1a2e; }
+  .stat-value.income { color: #1D9E75; }
+  .stat-value.expense{ color: #E24B4A; }
+
+  /* Form */
+  .card { background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-bottom: 1.25rem; }
+  .card-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  label { font-size: 12px; color: #666; }
+  input, select {
+    border: 1px solid #ddd; border-radius: 7px; padding: 8px 10px;
+    font-size: 14px; outline: none; background: #fafafa; color: #1a1a2e;
+    transition: border-color .15s;
+  }
+  input:focus, select:focus { border-color: #5b6af0; background: #fff; }
+  .btn-add {
+    width: 100%; margin-top: 12px; padding: 10px;
+    background: #1a1a2e; color: #fff; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity .15s;
+  }
+  .btn-add:hover { opacity: .85; }
+
+  /* Filter */
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+  .filter-group { display: flex; flex-direction: column; gap: 3px; }
+  .filter-group label { font-size: 11px; color: #888; }
+  .filter-row select, .filter-row input[type=date] {
+    font-size: 13px; padding: 6px 10px; height: 34px; border-radius: 7px;
+  }
+  /* Mode tabs */
+  .mode-tabs { display: flex; border: 1px solid #ddd; border-radius: 7px; overflow: hidden; height: 34px; }
+  .tab {
+    flex: 1; padding: 0 12px; border: none; background: #fafafa; color: #666;
+    font-size: 13px; font-weight: 500; cursor: pointer; transition: background .15s, color .15s;
+    white-space: nowrap;
+  }
+  .tab:not(:last-child) { border-right: 1px solid #ddd; }
+  .tab:hover { background: #f0f0f0; }
+  .tab.active { background: #1a1a2e; color: #fff; font-weight: 600; }
+
+  /* Table */
+  .table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .04em;
+       padding: 10px 14px; background: #f8f9fb; border-bottom: 1px solid #eee; text-align: left; }
+  td { font-size: 14px; padding: 10px 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.date { white-space: nowrap; overflow: visible; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbff; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 9px; border-radius: 99px; font-weight: 600; }
+  .badge-expense { background: #fff0f0; color: #c0392b; }
+  .badge-income  { background: #e8faf3; color: #0F6E56; }
+  .amt-expense { color: #E24B4A; font-weight: 600; }
+  .amt-income  { color: #1D9E75; font-weight: 600; }
+  .btn-del { background: none; border: none; cursor: pointer; color: #bbb; font-size: 16px; padding: 2px 6px; border-radius: 5px; }
+  .btn-del:hover { color: #E24B4A; background: #fff0f0; }
+  .empty { text-align: center; padding: 3rem; color: #aaa; font-size: 14px; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #1a1a2e; color: #fff;
+           padding: 10px 18px; border-radius: 8px; font-size: 13px; opacity: 0;
+           transition: opacity .3s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 600px) {
+    .stats { grid-template-columns: 1fr 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .filter-row { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+  <h1>Quản lý chi tiêu</h1>
+</header>
+
+<div class="container">
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Giao dịch</div>
+      <div class="stat-value total" id="stat-count">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Tổng chi</div>
+      <div class="stat-value expense" id="stat-expense">0 ₫</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Tổng thu</div>
+      <div class="stat-value income" id="stat-income">0 ₫</div>
+    </div>
+  </div>
+
+  <!-- Form thêm -->
+  <div class="card">
+    <div class="card-title">+ Thêm giao dịch</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Mô tả</label>
+        <input type="text" id="f-desc" placeholder="Ăn trưa, tiền điện...">
+      </div>
+      <div class="form-group">
+        <label>Số tiền (₫)</label>
+        <input type="number" id="f-amount" placeholder="50000" min="1">
+      </div>
+      <div class="form-group">
+        <label>Danh mục</label>
+        <select id="f-cat">
+          <option>Ăn uống</option>
+          <option>Di chuyển</option>
+          <option>Mua sắm</option>
+          <option>Hóa đơn</option>
+          <option>Giải trí</option>
+          <option>Thu nhập</option>
+          <option>Khác</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Ngày</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="form-group">
+        <label>Loại</label>
+        <select id="f-type">
+          <option value="expense">Chi tiêu</option>
+          <option value="income">Thu nhập</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addTx()">Thêm giao dịch</button>
+  </div>
+
+  <!-- Filter -->
+  <div class="card" style="padding: 1rem 1.25rem;">
+    <div class="filter-row">
+      <!-- Loại & Danh mục -->
+      <div class="filter-group">
+        <label>Loại</label>
+        <select id="fil-type" onchange="loadTx()">
+          <option value="">Tất cả</option>
+          <option value="expense">Chi tiêu</option>
+          <option value="income">Thu nhập</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Danh mục</label>
+        <select id="fil-cat" onchange="loadTx()">
+          <option value="">Tất cả</option>
+          <option>Ăn uống</option><option>Di chuyển</option><option>Mua sắm</option>
+          <option>Hóa đơn</option><option>Giải trí</option><option>Thu nhập</option><option>Khác</option>
+        </select>
+      </div>
+
+      <!-- Divider -->
+      <div style="width:1px;background:#eee;margin:0 4px;align-self:stretch;"></div>
+
+      <!-- Mode tabs -->
+      <div class="filter-group">
+        <label>&nbsp;</label>
+        <div class="mode-tabs">
+          <button id="tab-date"  class="tab active" onclick="setMode('date')">Ngày</button>
+          <button id="tab-month" class="tab"        onclick="setMode('month')">Tháng</button>
+          <button id="tab-year"  class="tab"        onclick="setMode('year')">Năm</button>
+          <button id="tab-all"   class="tab"        onclick="setMode('all')">Toàn bộ</button>
+        </div>
+      </div>
+
+      <!-- Input theo ngày -->
+      <div class="filter-group" id="input-date">
+        <label>Chọn ngày</label>
+        <input type="date" id="fil-date" onchange="loadTx()">
+      </div>
+
+      <!-- Input theo tháng -->
+      <div class="filter-group" id="input-month" style="display:none">
+        <label>Tháng</label>
+        <select id="fil-month" onchange="loadTx()">
+          <option value="1">Tháng 1</option><option value="2">Tháng 2</option>
+          <option value="3">Tháng 3</option><option value="4">Tháng 4</option>
+          <option value="5">Tháng 5</option><option value="6">Tháng 6</option>
+          <option value="7">Tháng 7</option><option value="8">Tháng 8</option>
+          <option value="9">Tháng 9</option><option value="10">Tháng 10</option>
+          <option value="11">Tháng 11</option><option value="12">Tháng 12</option>
+        </select>
+      </div>
+      <div class="filter-group" id="input-month-year" style="display:none">
+        <label>Năm</label>
+        <select id="fil-month-year" onchange="loadTx()"></select>
+      </div>
+
+      <!-- Input theo năm -->
+      <div class="filter-group" id="input-year" style="display:none">
+        <label>Năm</label>
+        <select id="fil-year" onchange="loadTx()"></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bảng -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:115px">Ngày</th>
+          <th>Mô tả</th>
+          <th style="width:110px">Danh mục</th>
+          <th style="width:85px">Loại</th>
+          <th style="width:140px;text-align:right">Số tiền</th>
+          <th style="width:44px"></th>
+        </tr>
+      </thead>
+      <tbody id="tx-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api';
+const now = new Date();
+const todayStr = now.toISOString().slice(0, 10);
+let mode = 'date'; // 'date' | 'month' | 'year' | 'all'
+
+// ── Khởi tạo ─────────────────────────────────────────────────
+document.getElementById('f-date').value  = todayStr;
+document.getElementById('fil-date').value = todayStr;
+
+// Điền năm vào cả 2 select năm
+function fillYearSelect(id, selectedYear) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '';
+  for (let y = now.getFullYear(); y >= now.getFullYear() - 5; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = 'Năm ' + y;
+    if (y === selectedYear) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+fillYearSelect('fil-year',       now.getFullYear());
+fillYearSelect('fil-month-year', now.getFullYear());
+
+// Tháng hiện tại cho select tháng
+document.getElementById('fil-month').value = String(now.getMonth() + 1);
+
+function fmt(n) { return Math.round(n).toLocaleString('vi-VN') + ' ₫'; }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Chuyển mode ───────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  // Update tab styles
+  ['date','month','year','all'].forEach(k => {
+    document.getElementById('tab-'+k).classList.toggle('active', k === m);
+  });
+  // Show/hide input groups
+  document.getElementById('input-date').style.display       = m === 'date'  ? '' : 'none';
+  document.getElementById('input-month').style.display      = m === 'month' ? '' : 'none';
+  document.getElementById('input-month-year').style.display = m === 'month' ? '' : 'none';
+  document.getElementById('input-year').style.display       = m === 'year'  ? '' : 'none';
+  loadTx();
+}
+
+// ── Load dữ liệu ──────────────────────────────────────────────
+async function loadTx() {
+  const type = document.getElementById('fil-type').value;
+  const cat  = document.getElementById('fil-cat').value;
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  if (cat)  params.set('category', cat);
+
+  if (mode === 'all') {
+    params.set('all', 'true');
+  } else if (mode === 'date') {
+    const date = document.getElementById('fil-date').value;
+    params.set('date', date || todayStr);
+  } else if (mode === 'month') {
+    const month = document.getElementById('fil-month').value;
+    const year  = document.getElementById('fil-month-year').value;
+    params.set('month', month);
+    params.set('year', year);
+} else if (mode === 'year') {
+  const year = document.getElementById('fil-year').value;
+  if (!year) return; // tránh gọi API khi chưa có giá trị
+  params.set('year', year);
+}
+
+  try {
+    const res = await fetch(`${API}/transactions?${params}`);
+    const txs = await res.json();
+    let exp = 0, inc = 0;
+    txs.forEach(t => t.type === 'expense' ? exp += t.amount : inc += t.amount);
+    document.getElementById('stat-count').textContent   = txs.length;
+    document.getElementById('stat-expense').textContent = fmt(exp);
+    document.getElementById('stat-income').textContent  = fmt(inc);
+
+    const tbody = document.getElementById('tx-body');
+    if (!txs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Chưa có giao dịch nào</td></tr>';
+      return;
+    }
+    tbody.innerHTML = txs.map(t => {
+      const d = new Date(t.tx_date);
+      const ds = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+      return `<tr>
+        <td class="date">${ds}</td>
+        <td title="${t.description}">${t.description}</td>
+        <td>${t.category}</td>
+        <td><span class="badge badge-${t.type}">${t.type==='expense'?'Chi':'Thu'}</span></td>
+        <td class="amt-${t.type}" style="text-align:right">${t.type==='expense'?'−':'+'}${fmt(t.amount)}</td>
+        <td><button class="btn-del" onclick="deleteTx('${t._id}')" title="Xóa">✕</button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('tx-body').innerHTML =
+      '<tr><td colspan="6" class="empty">⚠️ Không thể kết nối API. Kiểm tra Docker đang chạy.</td></tr>';
+  }
+}
+
+async function addTx() {
+  const desc   = document.getElementById('f-desc').value.trim();
+  const amount = parseFloat(document.getElementById('f-amount').value);
+  const cat    = document.getElementById('f-cat').value;
+  const date   = document.getElementById('f-date').value;
+  const type   = document.getElementById('f-type').value;
+  if (!desc || !amount || amount < 1 || !date) {
+    showToast('⚠️ Vui lòng điền đầy đủ thông tin'); return;
+  }
+  try {
+    await fetch(`${API}/transactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: desc, amount, category: cat, type, tx_date: date }),
+    });
+    document.getElementById('f-desc').value   = '';
+    document.getElementById('f-amount').value = '';
+    showToast('✅ Đã thêm giao dịch');
+    loadTx();
+  } catch(e) { showToast('❌ Lỗi khi thêm giao dịch'); }
+}
+
+async function deleteTx(id) {
+  if (!confirm('Xóa giao dịch này?')) return;
+  try {
+    await fetch(`${API}/transactions/${id}`, { method: 'DELETE' });
+    showToast('🗑️ Đã xóa');
+    loadTx();
+  } catch(e) { showToast('❌ Lỗi khi xóa'); }
+}
+
+loadTx();
+</script>
+</body>
+</html>

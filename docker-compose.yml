@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: expense_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+    ports:
+      - "${MONGO_PORT}:27017"
+    volumes:
+      - mongodata:/data/db
+      - ./db/seed.js:/docker-entrypoint-initdb.d/seed.js:ro
+
+  api:
+    build: ./api
+    container_name: expense_api
+    restart: unless-stopped
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      PORT: ${PORT}
+      FRONTEND_PORT: ${FRONTEND_PORT}
+    ports:
+      - "${API_PORT}:3000"
+    depends_on:
+      - mongo
+
+  frontend:
+    image: nginx:alpine
+    container_name: expense_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT}:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+
+volumes:
+  mongodata:
