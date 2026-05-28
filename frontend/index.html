@@ -7,8 +7,8 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
-  header { background: #1a1a2e; color: #fff; padding: 1rem 2rem; display: flex; align-items: center; gap: 10px; }
-  header h1 { font-size: 1.2rem; font-weight: 600; }
+  header { background: #1a1a2e; color: #fff; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
   .container { max-width: 960px; margin: 0 auto; padding: 1.5rem; }
 
   /* Stats */
@@ -81,6 +81,41 @@
            transition: opacity .3s; pointer-events: none; z-index: 999; }
   .toast.show { opacity: 1; }
 
+  /* ── Auth Screen ── */
+  #auth-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #f4f6f9;
+  }
+  .auth-card {
+    background: #fff; border-radius: 16px; padding: 2rem; width: 100%; max-width: 380px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.08);
+  }
+  .auth-logo { text-align: center; margin-bottom: 1.5rem; }
+  .auth-logo svg { display: block; margin: 0 auto 8px; }
+  .auth-logo h2 { font-size: 1.1rem; font-weight: 700; color: #1a1a2e; }
+  .auth-tabs { display: flex; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 1.25rem; }
+  .auth-tab { flex: 1; padding: 9px; border: none; background: #fafafa; color: #666; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .auth-tab.active { background: #1a1a2e; color: #fff; }
+  .auth-form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .auth-form-group label { font-size: 12px; color: #666; }
+  .auth-form-group input { font-size: 14px; }
+  .btn-auth {
+    width: 100%; padding: 11px; background: #1a1a2e; color: #fff;
+    border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 4px; transition: opacity .15s;
+  }
+  .btn-auth:hover { opacity: .85; }
+  .auth-error { color: #E24B4A; font-size: 12px; margin-top: 8px; text-align: center; min-height: 18px; }
+
+  /* Logout button */
+  .btn-logout {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    color: #fff; padding: 5px 12px; border-radius: 6px; font-size: 12px;
+    cursor: pointer; transition: background .15s;
+  }
+  .btn-logout:hover { background: rgba(255,255,255,0.25); }
+  .header-user { font-size: 12px; color: rgba(255,255,255,0.7); }
+
   @media (max-width: 600px) {
     .stats { grid-template-columns: 1fr 1fr; }
     .form-grid { grid-template-columns: 1fr; }
@@ -90,9 +125,46 @@
 </head>
 <body>
 
+<!-- ── Auth Screen ── -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg width="36" height="36" fill="none" stroke="#1a1a2e" stroke-width="2" viewBox="0 0 24 24">
+        <rect x="2" y="5" width="20" height="14" rx="2"/>
+        <path d="M2 10h20"/>
+      </svg>
+      <h2>Quản lý chi tiêu</h2>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Đăng nhập</button>
+      <button class="auth-tab" id="tab-register" onclick="switchTab('register')">Đăng ký</button>
+    </div>
+    <div class="auth-form-group">
+      <label>Email</label>
+      <input type="email" id="auth-email" placeholder="example@email.com" autocomplete="email">
+    </div>
+    <div class="auth-form-group">
+      <label>Mật khẩu</label>
+      <input type="password" id="auth-password" placeholder="Tối thiểu 6 ký tự" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter') submitAuth()">
+    </div>
+    <button class="btn-auth" onclick="submitAuth()" id="btn-auth-submit">Đăng nhập</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="app" style="display:none">
+
 <header>
-  <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-  <h1>Quản lý chi tiêu</h1>
+  <h1>
+    <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+    Quản lý chi tiêu
+  </h1>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span class="header-user" id="header-email"></span>
+    <button class="btn-logout" onclick="logout()">Đăng xuất</button>
+  </div>
 </header>
 
 <div class="container">
@@ -154,7 +226,6 @@
   <!-- Filter -->
   <div class="card" style="padding: 1rem 1.25rem;">
     <div class="filter-row">
-      <!-- Loại & Danh mục -->
       <div class="filter-group">
         <label>Loại</label>
         <select id="fil-type" onchange="loadTx()">
@@ -171,11 +242,7 @@
           <option>Hóa đơn</option><option>Giải trí</option><option>Thu nhập</option><option>Khác</option>
         </select>
       </div>
-
-      <!-- Divider -->
       <div style="width:1px;background:#eee;margin:0 4px;align-self:stretch;"></div>
-
-      <!-- Mode tabs -->
       <div class="filter-group">
         <label>&nbsp;</label>
         <div class="mode-tabs">
@@ -185,14 +252,10 @@
           <button id="tab-all"   class="tab"        onclick="setMode('all')">Toàn bộ</button>
         </div>
       </div>
-
-      <!-- Input theo ngày -->
       <div class="filter-group" id="input-date">
         <label>Chọn ngày</label>
         <input type="date" id="fil-date" onchange="loadTx()">
       </div>
-
-      <!-- Input theo tháng -->
       <div class="filter-group" id="input-month" style="display:none">
         <label>Tháng</label>
         <select id="fil-month" onchange="loadTx()">
@@ -208,8 +271,6 @@
         <label>Năm</label>
         <select id="fil-month-year" onchange="loadTx()"></select>
       </div>
-
-      <!-- Input theo năm -->
       <div class="filter-group" id="input-year" style="display:none">
         <label>Năm</label>
         <select id="fil-year" onchange="loadTx()"></select>
@@ -235,35 +296,102 @@
   </div>
 </div>
 
+</div><!-- /#app -->
+
 <div class="toast" id="toast"></div>
 
 <script>
 // const API = '/api';
-const API = 'https://expense-api-0fuh.onrender.com/api';
+const API = window.location.hostname === 'localhost' 
+  ? '/api' 
+  : 'https://expense-api-0fuh.onrender.com/api';
 const now = new Date();
 const todayStr = now.toISOString().slice(0, 10);
-let mode = 'date'; // 'date' | 'month' | 'year' | 'all'
+let mode = 'date';
 
-// ── Khởi tạo ─────────────────────────────────────────────────
-document.getElementById('f-date').value  = todayStr;
-document.getElementById('fil-date').value = todayStr;
+// ── Auth helpers ──────────────────────────────────────────────
+let authTab = 'login';
 
-// Điền năm vào cả 2 select năm
-function fillYearSelect(id, selectedYear) {
-  const sel = document.getElementById(id);
-  sel.innerHTML = '';
-  for (let y = now.getFullYear(); y >= now.getFullYear() - 5; y--) {
-    const opt = document.createElement('option');
-    opt.value = y; opt.textContent = 'Năm ' + y;
-    if (y === selectedYear) opt.selected = true;
-    sel.appendChild(opt);
+function switchTab(t) {
+  authTab = t;
+  document.getElementById('tab-login').classList.toggle('active', t === 'login');
+  document.getElementById('tab-register').classList.toggle('active', t === 'register');
+  document.getElementById('btn-auth-submit').textContent = t === 'login' ? 'Đăng nhập' : 'Đăng ký';
+  document.getElementById('auth-error').textContent = '';
+}
+
+async function submitAuth() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl    = document.getElementById('auth-error');
+  errEl.textContent = '';
+
+  if (!email || !password) { errEl.textContent = 'Vui lòng nhập email và mật khẩu'; return; }
+
+  const endpoint = authTab === 'login' ? '/auth/login' : '/auth/register';
+  try {
+    const res  = await fetch(`${API}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Đã có lỗi xảy ra'; return; }
+
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('email', data.email);
+    showApp();
+  } catch(e) {
+    errEl.textContent = 'Không kết nối được server';
   }
 }
-fillYearSelect('fil-year',       now.getFullYear());
-fillYearSelect('fil-month-year', now.getFullYear());
 
-// Tháng hiện tại cho select tháng
-document.getElementById('fil-month').value = String(now.getMonth() + 1);
+function logout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('email');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('auth-password').value = '';
+  document.getElementById('auth-error').textContent = '';
+}
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('header-email').textContent = localStorage.getItem('email') || '';
+  initApp();
+}
+
+function authHeaders() {
+  const token = localStorage.getItem('token');
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+}
+
+// ── Khởi động ─────────────────────────────────────────────────
+if (localStorage.getItem('token')) {
+  showApp();
+}
+
+// ── App init ──────────────────────────────────────────────────
+function initApp() {
+  document.getElementById('f-date').value   = todayStr;
+  document.getElementById('fil-date').value = todayStr;
+
+  function fillYearSelect(id, selectedYear) {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    for (let y = now.getFullYear(); y >= now.getFullYear() - 5; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = 'Năm ' + y;
+      if (y === selectedYear) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+  fillYearSelect('fil-year',       now.getFullYear());
+  fillYearSelect('fil-month-year', now.getFullYear());
+  document.getElementById('fil-month').value = String(now.getMonth() + 1);
+  loadTx();
+}
 
 function fmt(n) { return Math.round(n).toLocaleString('vi-VN') + ' ₫'; }
 
@@ -273,14 +401,11 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ── Chuyển mode ───────────────────────────────────────────────
 function setMode(m) {
   mode = m;
-  // Update tab styles
   ['date','month','year','all'].forEach(k => {
     document.getElementById('tab-'+k).classList.toggle('active', k === m);
   });
-  // Show/hide input groups
   document.getElementById('input-date').style.display       = m === 'date'  ? '' : 'none';
   document.getElementById('input-month').style.display      = m === 'month' ? '' : 'none';
   document.getElementById('input-month-year').style.display = m === 'month' ? '' : 'none';
@@ -288,7 +413,6 @@ function setMode(m) {
   loadTx();
 }
 
-// ── Load dữ liệu ──────────────────────────────────────────────
 async function loadTx() {
   const type = document.getElementById('fil-type').value;
   const cat  = document.getElementById('fil-cat').value;
@@ -299,21 +423,19 @@ async function loadTx() {
   if (mode === 'all') {
     params.set('all', 'true');
   } else if (mode === 'date') {
-    const date = document.getElementById('fil-date').value;
-    params.set('date', date || todayStr);
+    params.set('date', document.getElementById('fil-date').value || todayStr);
   } else if (mode === 'month') {
-    const month = document.getElementById('fil-month').value;
-    const year  = document.getElementById('fil-month-year').value;
-    params.set('month', month);
+    params.set('month', document.getElementById('fil-month').value);
+    params.set('year',  document.getElementById('fil-month-year').value);
+  } else if (mode === 'year') {
+    const year = document.getElementById('fil-year').value;
+    if (!year) return;
     params.set('year', year);
-} else if (mode === 'year') {
-  const year = document.getElementById('fil-year').value;
-  if (!year) return; // tránh gọi API khi chưa có giá trị
-  params.set('year', year);
-}
+  }
 
   try {
-    const res = await fetch(`${API}/transactions?${params}`);
+    const res = await fetch(`${API}/transactions?${params}`, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
     const txs = await res.json();
     let exp = 0, inc = 0;
     txs.forEach(t => t.type === 'expense' ? exp += t.amount : inc += t.amount);
@@ -340,7 +462,7 @@ async function loadTx() {
     }).join('');
   } catch(e) {
     document.getElementById('tx-body').innerHTML =
-      '<tr><td colspan="6" class="empty">⚠️ Không thể kết nối API. Kiểm tra Docker đang chạy.</td></tr>';
+      '<tr><td colspan="6" class="empty">⚠️ Không thể kết nối API.</td></tr>';
   }
 }
 
@@ -354,11 +476,12 @@ async function addTx() {
     showToast('⚠️ Vui lòng điền đầy đủ thông tin'); return;
   }
   try {
-    await fetch(`${API}/transactions`, {
+    const res = await fetch(`${API}/transactions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ description: desc, amount, category: cat, type, tx_date: date }),
     });
+    if (res.status === 401) { logout(); return; }
     document.getElementById('f-desc').value   = '';
     document.getElementById('f-amount').value = '';
     showToast('✅ Đã thêm giao dịch');
@@ -369,13 +492,12 @@ async function addTx() {
 async function deleteTx(id) {
   if (!confirm('Xóa giao dịch này?')) return;
   try {
-    await fetch(`${API}/transactions/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API}/transactions/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
     showToast('🗑️ Đã xóa');
     loadTx();
   } catch(e) { showToast('❌ Lỗi khi xóa'); }
 }
-
-loadTx();
 </script>
 </body>
 </html>

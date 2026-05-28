@@ -6,8 +6,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ── Auth ─────────────────────────────────────────────────────
+const authRoutes     = require('./routes/auth');
+const authMiddleware = require('./middleware/auth');
+
+app.use('/api/auth', authRoutes);
+
 // ── Schema / Model ───────────────────────────────────────────
 const txSchema = new mongoose.Schema({
+  user_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   description: { type: String, required: true, trim: true },
   amount:      { type: Number, required: true, min: 1 },
   category:    { type: String, default: 'Khác' },
@@ -18,13 +25,13 @@ const txSchema = new mongoose.Schema({
 
 const Transaction = mongoose.model('Transaction', txSchema);
 
-// ── Routes ───────────────────────────────────────────────────
+// ── Routes (cần đăng nhập) ───────────────────────────────────
 
 // GET /api/transactions
-app.get('/api/transactions', async (req, res) => {
+app.get('/api/transactions', authMiddleware, async (req, res) => {
   try {
     const { type, category, date, week, month, year, all } = req.query;
-    const filter = {};
+    const filter = { user_id: req.user.id };
     if (type)     filter.type = type;
     if (category) filter.category = category;
 
@@ -71,9 +78,10 @@ app.get('/api/transactions', async (req, res) => {
 });
 
 // GET /api/transactions/summary
-app.get('/api/transactions/summary', async (req, res) => {
+app.get('/api/transactions/summary', authMiddleware, async (req, res) => {
   try {
     const result = await Transaction.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(req.user.id) } },
       {
         $group: {
           _id: {
@@ -93,10 +101,10 @@ app.get('/api/transactions/summary', async (req, res) => {
   }
 });
 
-// ✅ GET /api/transactions/:id - Lấy chi tiết 1 giao dịch
-app.get('/api/transactions/:id', async (req, res) => {
+// GET /api/transactions/:id
+app.get('/api/transactions/:id', authMiddleware, async (req, res) => {
   try {
-    const transaction = await Transaction.findById(req.params.id);
+    const transaction = await Transaction.findOne({ _id: req.params.id, user_id: req.user.id });
     if (!transaction) {
       return res.status(404).json({ error: 'Không tìm thấy giao dịch' });
     }
@@ -107,9 +115,9 @@ app.get('/api/transactions/:id', async (req, res) => {
 });
 
 // POST /api/transactions
-app.post('/api/transactions', async (req, res) => {
+app.post('/api/transactions', authMiddleware, async (req, res) => {
   try {
-    const tx = await Transaction.create(req.body);
+    const tx = await Transaction.create({ ...req.body, user_id: req.user.id });
     res.status(201).json(tx);
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -117,9 +125,14 @@ app.post('/api/transactions', async (req, res) => {
 });
 
 // PUT /api/transactions/:id
-app.put('/api/transactions/:id', async (req, res) => {
+app.put('/api/transactions/:id', authMiddleware, async (req, res) => {
   try {
-    const tx = await Transaction.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const tx = await Transaction.findOneAndUpdate(
+      { _id: req.params.id, user_id: req.user.id },
+      req.body,
+      { new: true }
+    );
+    if (!tx) return res.status(404).json({ error: 'Không tìm thấy giao dịch' });
     res.json(tx);
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -127,9 +140,9 @@ app.put('/api/transactions/:id', async (req, res) => {
 });
 
 // DELETE /api/transactions/:id
-app.delete('/api/transactions/:id', async (req, res) => {
+app.delete('/api/transactions/:id', authMiddleware, async (req, res) => {
   try {
-    await Transaction.findByIdAndDelete(req.params.id);
+    await Transaction.findOneAndDelete({ _id: req.params.id, user_id: req.user.id });
     res.json({ message: 'Đã xóa' });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -144,19 +157,22 @@ module.exports = app;
 
 // ── Chỉ chạy server khi file được gọi trực tiếp ──
 if (require.main === module) {
+  const PORT          = process.env.PORT          || 3000;
+  const FRONTEND_PORT = process.env.FRONTEND_PORT || 8080;
+
   const connectDB = async () => {
     const MONGO_URI = process.env.MONGO_URI || 'mongodb://admin:secret123@localhost:27017/expense_tracker?authSource=admin';
     await mongoose.connect(MONGO_URI);
     console.log('✅ MongoDB connected');
   };
 
-  const PORT = process.env.PORT || 3000;
-  
   connectDB().then(() => {
     app.listen(PORT, () => {
       console.log('================================');
       console.log('[INFO] API running on port ' + PORT);
+      console.log('[INFO] Web:      http://localhost:' + FRONTEND_PORT);
       console.log('[INFO] API:      http://localhost:' + PORT + '/api/transactions');
+      console.log('[INFO] Auth:     http://localhost:' + PORT + '/api/auth/login');
       console.log('[INFO] Health:   http://localhost:' + PORT + '/health');
       console.log('================================');
     });
