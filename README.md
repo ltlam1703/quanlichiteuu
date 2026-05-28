@@ -2,7 +2,7 @@
 
 **Live URLs:**
 - 🌐 Frontend: https://expense-frontend-yj8o.onrender.com
-- 🔌 API: https://expense-api-0fuh.onrender.com/api/health
+- 🔌 API: https://expense-api-0fuh.onrender.com/health
 
 ---
 
